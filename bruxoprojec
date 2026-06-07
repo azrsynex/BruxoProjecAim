@@ -1,5 +1,5 @@
 -- ============================================================
---   BRUXO PROJECT v3.3 — MENU COM SCROLL (TUDO CABE)
+--   BRUXO PROJECT v3.5 — INVISIBILIDADE CORRIGIDA
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -37,6 +37,11 @@ local jumpForceConnection = nil
 local GodModeEnabled = false
 local godModeConnection = nil
 local healthConnection = nil
+
+local InvisibleEnabled = false
+local invisibleConnection = nil
+local noclipEnabled = false  -- Atravessar paredes
+local noclipConnection = nil
 
 local SilentAimEnabled = false
 local SilentAimFOV = 150
@@ -85,6 +90,174 @@ local function showHitmarker()
     TweenService:Create(hitmarker, TweenInfo.new(0.1), {BackgroundTransparency = 1}):Play()
     task.wait(0.1)
     hitmarker:Destroy()
+end
+
+-- ========== INVISIBILIDADE CORRIGIDA ==========
+local function applyInvisibility()
+    if invisibleConnection then invisibleConnection:Disconnect() end
+    
+    if InvisibleEnabled then
+        print("[INVISIBLE] Ativando invisibilidade...")
+        
+        -- Função para tornar um personagem invisível
+        local function makeInvisible(character)
+            if not character then return end
+            
+            -- Partes do corpo
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    pcall(function()
+                        part.Transparency = 1
+                        part.CanCollide = not noclipEnabled
+                        part.Material = Enum.Material.SmoothPlastic
+                    end)
+                elseif part:IsA("Decal") then
+                    pcall(function() part.Transparency = 1 end)
+                elseif part:IsA("Accessory") and part.Handle then
+                    pcall(function() part.Handle.Transparency = 1 end)
+                elseif part:IsA("MeshPart") then
+                    pcall(function() part.Transparency = 1 end)
+                end
+            end
+            
+            -- Humanoid
+            local hum = character:FindFirstChild("Humanoid")
+            if hum then
+                pcall(function() 
+                    hum.Visible = false
+                    hum.BreakJointsOnDeath = false
+                end)
+            end
+            
+            -- Remover efeitos visuais
+            for _, effect in ipairs(character:GetDescendants()) do
+                if effect:IsA("Trail") or effect:IsA("ParticleEmitter") or effect:IsA("Smoke") or effect:IsA("Fire") or effect:IsA("Sparkles") then
+                    pcall(function() effect.Enabled = false end)
+                end
+            end
+            
+            -- Roupas (Shirt, Pants)
+            local shirt = character:FindFirstChild("Shirt")
+            local pants = character:FindFirstChild("Pants")
+            if shirt then pcall(function() shirt.Visible = false end) end
+            if pants then pcall(function() pants.Visible = false end) end
+        end
+        
+        -- Aplicar invisibilidade imediatamente
+        local char = LocalPlayer.Character
+        if char then
+            makeInvisible(char)
+        end
+        
+        -- Loop para manter invisível (força a cada frame)
+        invisibleConnection = RunService.RenderStepped:Connect(function()
+            if InvisibleEnabled then
+                local charNow = LocalPlayer.Character
+                if charNow then
+                    for _, part in ipairs(charNow:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            if part.Transparency < 1 then
+                                pcall(function() part.Transparency = 1 end)
+                            end
+                            pcall(function() part.CanCollide = not noclipEnabled end)
+                        elseif part:IsA("Decal") and part.Transparency < 1 then
+                            pcall(function() part.Transparency = 1 end)
+                        elseif part:IsA("Accessory") and part.Handle and part.Handle.Transparency < 1 then
+                            pcall(function() part.Handle.Transparency = 1 end)
+                        elseif part:IsA("MeshPart") and part.Transparency < 1 then
+                            pcall(function() part.Transparency = 1 end)
+                        end
+                    end
+                    
+                    local hum = charNow:FindFirstChild("Humanoid")
+                    if hum and hum.Visible == true then
+                        pcall(function() hum.Visible = false end)
+                    end
+                    
+                    local shirt = charNow:FindFirstChild("Shirt")
+                    local pants = charNow:FindFirstChild("Pants")
+                    if shirt and shirt.Visible == true then pcall(function() shirt.Visible = false end) end
+                    if pants and pants.Visible == true then pcall(function() pants.Visible = false end) end
+                end
+            end
+        end)
+        
+        print("[INVISIBLE] ✓ Ativado! Você está invisível!")
+    else
+        -- Restaurar visibilidade
+        local char = LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    pcall(function() 
+                        part.Transparency = 0
+                        part.CanCollide = true
+                    end)
+                elseif part:IsA("Decal") then
+                    pcall(function() part.Transparency = 0 end)
+                elseif part:IsA("Accessory") and part.Handle then
+                    pcall(function() part.Handle.Transparency = 0 end)
+                elseif part:IsA("MeshPart") then
+                    pcall(function() part.Transparency = 0 end)
+                end
+            end
+            
+            local hum = char:FindFirstChild("Humanoid")
+            if hum then
+                pcall(function() hum.Visible = true end)
+            end
+            
+            local shirt = char:FindFirstChild("Shirt")
+            local pants = char:FindFirstChild("Pants")
+            if shirt then pcall(function() shirt.Visible = true end) end
+            if pants then pcall(function() pants.Visible = true end) end
+            
+            for _, effect in ipairs(char:GetDescendants()) do
+                if effect:IsA("Trail") or effect:IsA("ParticleEmitter") or effect:IsA("Smoke") or effect:IsA("Fire") or effect:IsA("Sparkles") then
+                    pcall(function() effect.Enabled = true end)
+                end
+            end
+        end
+        
+        if invisibleConnection then
+            invisibleConnection:Disconnect()
+            invisibleConnection = nil
+        end
+        print("[INVISIBLE] ✓ Desativado! Você está visível novamente!")
+    end
+end
+
+-- ========== NOCLIP (ATRAVESSAR PAREDES) ==========
+local function applyNoclip()
+    if noclipConnection then noclipConnection:Disconnect() end
+    
+    if noclipEnabled then
+        print("[NOCLIP] Ativado - Você pode atravessar paredes!")
+        noclipConnection = RunService.RenderStepped:Connect(function()
+            local char = LocalPlayer.Character
+            if char and noclipEnabled then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        pcall(function() part.CanCollide = false end)
+                    end
+                end
+            end
+        end)
+    else
+        local char = LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    pcall(function() part.CanCollide = true end)
+                end
+            end
+        end
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+        print("[NOCLIP] Desativado")
+    end
 end
 
 -- ========== GUN MODS ==========
@@ -357,10 +530,10 @@ toggleBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.Parent = screenGui
 Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(1, 0)
 
--- Menu principal (MAIOR)
+-- Menu principal
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 550, 0, 620)
-mainFrame.Position = UDim2.new(0.5, -275, 0.5, -310)
+mainFrame.Size = UDim2.new(0, 550, 0, 680)
+mainFrame.Position = UDim2.new(0.5, -275, 0.5, -340)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 mainFrame.BackgroundTransparency = 0
 mainFrame.BorderSizePixel = 2
@@ -380,7 +553,7 @@ Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -60, 1, 0)
 title.Position = UDim2.new(0, 15, 0, 0)
-title.Text = "🧙 BRUXO PROJECT v3.3"
+title.Text = "🧙 BRUXO PROJECT v3.5"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 18
 title.Font = Enum.Font.GothamBold
@@ -434,11 +607,11 @@ indicator.Position = UDim2.new(0, 25, 1, -2)
 indicator.BackgroundColor3 = Color3.fromRGB(80, 180, 240)
 indicator.Parent = tabBtns[1]
 
--- Painéis com SCROLL (para caber todas as opções)
+-- Painéis com SCROLL
 local panels = {}
 for i = 1, 4 do
     local scroll = Instance.new("ScrollingFrame")
-    scroll.Size = UDim2.new(1, -20, 0, 510)
+    scroll.Size = UDim2.new(1, -20, 0, 570)
     scroll.Position = UDim2.new(0, 10, 0, 92)
     scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
     scroll.BackgroundTransparency = 1
@@ -453,7 +626,6 @@ for i = 1, 4 do
     container.Size = UDim2.new(1, 0, 0, 0)
     container.BackgroundTransparency = 1
     container.Parent = scroll
-    scroll.CanvasPosition = Vector2.new(0, 0)
     
     panels[i] = {scroll = scroll, container = container}
 end
@@ -620,7 +792,7 @@ playerLabel.Parent = statusFrame
 y = y + 80
 
 local infoFrame = Instance.new("Frame")
-infoFrame.Size = UDim2.new(1, 0, 0, 100)
+infoFrame.Size = UDim2.new(1, 0, 0, 120)
 infoFrame.Position = UDim2.new(0, 0, 0, y)
 infoFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 infoFrame.BorderSizePixel = 0
@@ -638,7 +810,7 @@ infoTitle.TextXAlignment = Enum.TextXAlignment.Left
 infoTitle.BackgroundTransparency = 1
 infoTitle.Parent = infoFrame
 
-local recursos = {"Gun Mods: 7 modificações de arma", "Player: Fly, Speed, Jump, GodMode", "Aimbot & ESP: Mira automática + ESP completo", "Silent Aim: Mata todos dentro do FOV"}
+local recursos = {"Gun Mods: 7 modificações de arma", "Player: Fly, Speed, Jump, GodMode, Invisible, Noclip", "Aimbot & ESP: Mira automática + ESP completo", "Silent Aim: Mata todos dentro do FOV"}
 for i, rec in ipairs(recursos) do
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, -20, 0, 22)
@@ -805,6 +977,34 @@ py = py + 70
 createToggle(p3, py, "GodMode", GodModeEnabled, function(v)
     GodModeEnabled = v
     applyGodMode()
+end)
+py = py + 50
+
+-- INVISIBLE (CORRIGIDO)
+createToggle(p3, py, "Invisible", InvisibleEnabled, function(v)
+    InvisibleEnabled = v
+    applyInvisibility()
+    -- Se invisível estiver ativo, também aplica noclip automaticamente
+    if v then
+        noclipEnabled = true
+        applyNoclip()
+        -- Atualizar o botão Noclip se existir
+        if noclipBtn then
+            noclipBtn.Text = "Noclip: ON"
+            noclipBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 240)
+        end
+    end
+end)
+py = py + 50
+
+-- NOCLIP (Atravessar paredes)
+local noclipBtn = createToggle(p3, py, "Noclip", noclipEnabled, function(v)
+    noclipEnabled = v
+    applyNoclip()
+    -- Atualizar invisibilidade para aplicar CanCollide
+    if InvisibleEnabled then
+        applyInvisibility()
+    end
 end)
 
 updateCanvas(panels[3])
@@ -1017,6 +1217,14 @@ LocalPlayer.CharacterAdded:Connect(function(char)
             hum.MaxHealth = math.huge; hum.Health = math.huge; hum.BreakJointsOnDeath = false
         end
     end
+    if InvisibleEnabled then
+        task.wait(0.2)
+        applyInvisibility()
+    end
+    if noclipEnabled then
+        task.wait(0.2)
+        applyNoclip()
+    end
 end)
 
 -- ========== LOOP ==========
@@ -1025,7 +1233,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 print("========================================")
-print("🧙 BRUXO PROJECT v3.3 - MENU COM SCROLL 🧙")
-print("Todas as opções cabem no menu!")
-print("Use o scroll do mouse para navegar")
+print("🧙 BRUXO PROJECT v3.5 - INVISIBILIDADE CORRIGIDA 🧙")
+print("Invisible: Você fica completamente invisível")
+print("Noclip: Atravessa paredes")
 print("========================================")
